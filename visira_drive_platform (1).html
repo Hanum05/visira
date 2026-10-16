@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VISIRA-DRIVE — Advanced Visibility & Safety Assistance Platform</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for Visibility Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .light .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        /* Leaflet custom dark map skin adjustment */
+        .leaflet-tile-pane {
+            filter: brightness(0.7) invert(1) contrast(1.2) hue-rotate(200deg) saturate(0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.5); border-radius: 3px; }
+        
+        .pulse-marker {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300" id="appBody">
+
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Custom Modal Container -->
+    <div id="customModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+        <div class="glass-panel rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-700 transition-all transform scale-100">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="modalTitle" class="text-xl font-bold text-white flex items-center gap-2"></h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="modalBody" class="text-slate-300 text-sm mb-6 leading-relaxed"></div>
+            <div class="flex justify-end gap-3" id="modalFooter">
+                <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-sm font-medium transition">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-64 glass-panel border-r border-slate-800 flex flex-col transition-all duration-300 z-30 lg:translate-x-0 -translate-x-full fixed lg:static inset-y-0 left-0">
+            <div class="p-5 flex items-center justify-between border-b border-slate-800/80">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                        <i class="fa-solid fa-shield-halved text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg tracking-wide text-white">VISIRA<span class="text-emerald-400">-DRIVE</span></h1>
+                        <p class="text-[10px] text-slate-400 tracking-wider uppercase font-semibold">Safety & Visibility OS</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="flex-1 overflow-y-auto p-4 space-y-1.5" id="navLinks">
+                <button onclick="switchTab('dashboard')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 shadow-sm" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i> Dashboard Utama
+                </button>
+                <button onclick="switchTab('map')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="map">
+                    <i class="fa-solid fa-map-location-dot w-5 text-center"></i> Live Hazard Map
+                </button>
+                <button onclick="switchTab('traffic')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="traffic">
+                    <i class="fa-solid fa-car-side w-5 text-center"></i> Smart Traffic AI
+                </button>
+                <button onclick="switchTab('visibility')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="visibility">
+                    <i class="fa-solid fa-smog w-5 text-center"></i> Visibility Monitor
+                </button>
+                <button onclick="switchTab('alerts')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="alerts">
+                    <i class="fa-solid fa-triangle-exclamation w-5 text-center"></i> Smart Alert System
+                </button>
+                <button onclick="switchTab('route')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="route">
+                    <i class="fa-solid fa-route w-5 text-center"></i> Dynamic Route Planner
+                </button>
+                <button onclick="switchTab('community')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="community">
+                    <i class="fa-solid fa-users-line w-5 text-center"></i> Community Report
+                </button>
+                <button onclick="switchTab('device')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="device">
+                    <i class="fa-solid fa-microchip w-5 text-center"></i> My Device
+                </button>
+                <button onclick="switchTab('history')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="history">
+                    <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i> Trip History
+                </button>
+                <button onclick="switchTab('safety')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200" data-tab="safety">
+                    <i class="fa-solid fa-book-medical w-5 text-center"></i> Safety Center
+                </button>
+            </nav>
+
+            <!-- Device Quick Status Footer -->
+            <div class="p-4 border-t border-slate-800/80 bg-slate-900/40">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-slate-400 font-medium">Status Perangkat</span>
+                    <span id="sidebarStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Connected</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-300">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-battery-three-quarters text-emerald-400"></i> Baterai: <span id="sidebarBattery">88%</span></span>
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-temperature-half text-amber-400"></i> <span id="sidebarTemp">37°C</span></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Wrapper -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header Bar -->
+            <header class="glass-panel border-b border-slate-800 h-16 px-6 flex items-center justify-between z-20">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="lg:hidden text-slate-300 hover:text-white text-lg"><i class="fa-solid fa-bars"></i></button>
+                    <div>
+                        <h2 id="currentTabTitle" class="text-lg font-bold text-white">Dashboard Utama</h2>
+                        <p id="currentTabSubtitle" class="text-xs text-slate-400">Pusat Informasi & Kendali VISIRA-DRIVE Terpadu</p>
+                    </div>
+                </div>
+
+                <!-- Simulation & Control Header Options -->
+                <div class="flex items-center gap-3">
+                    <!-- Real-Time Drive Simulation Switcher -->
+                    <button onclick="toggleDriveSimulation()" id="driveSimBtn" class="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span id="driveSimBtnText">GPS Sim: Aktif</span>
+                    </button>
+
+                    <!-- Weather Preset Simulator -->
+                    <div class="hidden md:flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 px-3 py-1.5 rounded-xl">
+                        <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-cloud-sun text-emerald-400 mr-1"></i> Simulasi:</span>
+                        <select id="weatherPresetSelect" onchange="changeWeatherPreset(this.value)" class="bg-slate-800 text-xs text-white rounded-lg px-2 py-1 outline-none border border-slate-700 cursor-pointer">
+                            <option value="normal">Normal (Cerah)</option>
+                            <option value="fog">Kabut Tipis</option>
+                            <option value="smoke">Asap Karhutla Pekat</option>
+                            <option value="rain">Hujan Lebat</option>
+                            <option value="error">Gangguan Sensor / Glitch</option>
+                        </select>
+                    </div>
+
+                    <!-- Audio Alert Toggle -->
+                    <button onclick="toggleAudioAlerts()" id="audioToggleBtn" title="Aktifkan/Matikan Suara Peringatan" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700">
+                        <i class="fa-solid fa-volume-high text-emerald-400" id="audioIcon"></i>
+                    </button>
+
+                    <!-- Theme Toggle -->
+                    <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700">
+                        <i class="fa-solid fa-moon" id="themeIcon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6" id="mainContentContainer">
+
+                <!-- ================= 1. DASHBOARD UTAMA ================= -->
+                <div id="tab-dashboard" class="tab-content space-y-6">
+                    <!-- Status Banner -->
+                    <div id="statusBanner" class="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div id="statusIndicatorIcon" class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shadow-inner">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div>
+                                <h4 id="statusBannerTitle" class="font-bold text-white text-base">Sistem Beroperasi Normal</h4>
+                                <p id="statusBannerDesc" class="text-xs text-slate-300">Sensor optik & kamera AI aktif mengirimkan data real-time. Visibilitas optik terjaga.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+                            <span class="text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Telemetri Live: <span id="telemetrySpeed" class="font-bold text-emerald-400">62 km/h</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 4 Quick Metric Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="glass-panel p-5 rounded-2xl border border-slate-800/80 hover:border-emerald-500/40 transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status Visibilitas</span>
+                                <div id="visBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-400">Normal</div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <h3 id="visValue" class="text-3xl font-extrabold text-white">1.2 km</h3>
+                                <span class="text-xs text-slate-400">Jarak Pandang</span>
+                            </div>
+                            <p id="visSubtext" class="text-xs text-slate-400 mt-2">Kondisi optik udara jernih</p>
+                        </div>
+
+                        <div class="glass-panel p-5 rounded-2xl border border-slate-800/80 hover:border-emerald-500/40 transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Deteksi AI Sekitar</span>
+                                <div class="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-500/20 text-blue-400">NPU Active</div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <h3 id="detectedCount" class="text-3xl font-extrabold text-white">4</h3>
+                                <span class="text-xs text-slate-400">Kendaraan Terdeteksi</span>
+                            </div>
+                            <p id="detectedSubtext" class="text-xs text-slate-400 mt-2">2 Mobil, 1 Truk, 1 Motor</p>
+                        </div>
+
+                        <div class="glass-panel p-5 rounded-2xl border border-slate-800/80 hover:border-emerald-500/40 transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Peringatan Bahaya</span>
+                                <div id="alertCountBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-400">0 Aktif</div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <h3 id="alertStatusText" class="text-2xl font-extrabold text-emerald-400">Aman</h3>
+                            </div>
+                            <p id="alertSubtext" class="text-xs text-slate-400 mt-2">Jalur bersih dari hambatan</p>
+                        </div>
+
+                        <div class="glass-panel p-5 rounded-2xl border border-slate-800/80 hover:border-emerald-500/40 transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sesi Perjalanan</span>
+                                <div class="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-400">Malang - Sby</div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <h3 class="text-3xl font-extrabold text-white" id="tripDistanceText">48.2 <span class="text-lg font-normal text-slate-400">km</span></h3>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-2">Waktu Perjalanan: <span id="tripTimeText">38 m</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Camera Feed & Alerts Split Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Simulated AI Camera Feed Box -->
+                        <div class="lg:col-span-2 glass-panel p-5 rounded-2xl border border-slate-800/80 flex flex-col">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-camera text-emerald-400"></i> Live Optical Camera AI Feed
+                                </h3>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[11px] font-mono text-emerald-400"><i class="fa-solid fa-microchip mr-1"></i> FPS: <span id="fpsCounter">59.8</span></span>
+                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                                </div>
+                            </div>
+
+                            <!-- Camera Viewport Canvas -->
+                            <div class="relative w-full h-[320px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                                <canvas id="dashboardCameraCanvas" class="w-full h-full object-cover block"></canvas>
+                                
+                                <!-- Bounding Box Dynamic Overlay HTML layer -->
+                                <div id="dashBoundingOverlay" class="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between">
+                                    <div class="flex justify-between items-start text-[10px] font-mono text-slate-300">
+                                        <div class="bg-black/60 backdrop-blur px-2.5 py-1 rounded border border-white/10">
+                                            <span>CAM-01 [FRONT]</span> | <span id="dashCoords">Lat -7.9826, Long 112.6308</span>
+                                        </div>
+                                        <div id="dashWeatherBadge" class="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-bold">
+                                            VISIBILITY OPTIMAL (1.2 KM)
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-end text-[10px] font-mono text-slate-300">
+                                        <div class="bg-black/60 backdrop-blur px-2 py-1 rounded border border-white/10">
+                                            VISIRA NPU v2.4 Active | Confidence: 96.4%
+                                        </div>
+                                        <div class="text-right text-emerald-400 font-bold">
+                                            SPEED: <span id="dashCamSpeed">62 KM/H</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active Alerts Log -->
+                        <div class="glass-panel p-5 rounded-2xl border border-slate-800/80 flex flex-col">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-bell text-amber-400"></i> Peringatan Real-Time
+                                </h3>
+                                <span id="activeAlertsCountBadge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300">0</span>
+                            </div>
+                            <div class="flex-1 space-y-3 overflow-y-auto max-h-[320px] pr-1" id="dashboardAlertsList">
+                                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-slate-400 text-xs py-12">
+                                    <i class="fa-solid fa-shield-check text-emerald-400 text-3xl mb-2"></i>
+                                    <p class="font-medium text-slate-300">Sistem Beroperasi Aman</p>
+                                    <p class="text-[11px] text-slate-500 mt-1">Tidak ada risiko bahaya atau asap karhutla di sekeliling kendaraan Anda.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 2. LIVE HAZARD MAP (LEAFLET REALISTIC MAP) ================= -->
+                <div id="tab-map" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80 space-y-4">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-map-location-dot text-emerald-400"></i> Interactive Live Hazard Map
+                                </h3>
+                                <p class="text-xs text-slate-400">Peta interaktif berbasis GIS real-time memetakan posisi kendaraan, titik asap karhutla, kabut tebal, dan laporan jalan.</p>
+                            </div>
+                            <!-- Map Controls & Filters -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button onclick="recenterMap()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                                    <i class="fa-solid fa-location-crosshairs"></i> Posisi Saya
+                                </button>
+                                <button onclick="filterMapHazards('all')" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition">Semua Bahaya</button>
+                                <button onclick="filterMapHazards('smoke')" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-red-950/80 border border-red-500/40 text-red-300 transition">Asap Karhutla</button>
+                                <button onclick="filterMapHazards('fog')" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-950/80 border border-amber-500/40 text-amber-300 transition">Kabut Pekat</button>
+                            </div>
+                        </div>
+
+                        <!-- Real Leaflet Map Container -->
+                        <div class="relative w-full h-[500px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+                            <div id="leafletMap" class="w-full h-full z-10"></div>
+
+                            <!-- Map Overlay Controls Legend -->
+                            <div class="absolute bottom-4 left-4 z-20 glass-panel p-3 rounded-xl border border-slate-700 text-xs space-y-1.5 text-slate-300 shadow-xl pointer-events-auto">
+                                <div class="font-bold text-white mb-1 border-b border-slate-700 pb-1">Legenda Peta:</div>
+                                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 border border-white"></span> Posisi Kendaraan Anda</div>
+                                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 border border-white"></span> Asap Karhutla (Risiko Tinggi)</div>
+                                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500 border border-white"></span> Kabut Pekat / Jarak Pandang Pendek</div>
+                                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500 border border-white"></span> Laporan Komunitas Jalan</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 3. SMART TRAFFIC AI (DYNAMIC CANVAS SIMULATOR) ================= -->
+                <div id="tab-traffic" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80 space-y-4">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-car-side text-emerald-400"></i> Dynamic Smart Traffic Simulator & Object AI
+                                </h3>
+                                <p class="text-xs text-slate-400">Simulasi radar top-down realistis dengan fisika pergerakan lajur, deteksi jarak objek (LiDAR/Optik), dan Bounding Box AI.</p>
+                            </div>
+                            
+                            <!-- Traffic Controls -->
+                            <div class="flex items-center gap-3 bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-800">
+                                <span class="text-xs text-slate-400 font-medium">Kepadatan Lalu Lintas:</span>
+                                <input type="range" id="trafficDensitySlider" min="2" max="10" value="5" oninput="updateTrafficDensity(this.value)" class="w-24 accent-emerald-500 cursor-pointer">
+                                <span id="densityVal" class="text-xs font-bold text-emerald-400">Medium (5)</span>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Traffic Radar Viewport -->
+                        <div class="relative w-full h-[420px] bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center">
+                            <canvas id="trafficRadarCanvas" class="w-full h-full block"></canvas>
+
+                            <!-- Dynamic Radar Warning Overlay -->
+                            <div id="radarAlertBanner" class="absolute top-4 left-4 right-4 bg-amber-950/80 border border-amber-500/40 p-3 rounded-xl text-amber-200 text-xs flex items-center justify-between backdrop-blur-md hidden transition-all">
+                                <span class="flex items-center gap-2 font-medium">
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-400 text-base"></i> 
+                                    <span id="radarAlertText">Objek kendaraan mengerem mendadak di lajur Anda! Jarak: ~12m</span>
+                                </span>
+                                <button onclick="showModal('Deteksi AI Radar', 'Sistem NPU memproyeksikan laju kendaraan di depan melambat tiba-tiba. Disarankan menjaga jarak aman 30 meter.')" class="px-3 py-1 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-500">Analisis</button>
+                            </div>
+                        </div>
+
+                        <!-- Traffic Status Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-gauge-high"></i>
+                                </div>
+                                <div>
+                                    <h5 class="text-xs font-bold text-white">Laju Rata-Rata Jalur</h5>
+                                    <p class="text-lg font-extrabold text-emerald-400" id="avgSpeedVal">62 km/h</p>
+                                </div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                                </div>
+                                <div>
+                                    <h5 class="text-xs font-bold text-white">Lajur Paling Aman</h5>
+                                    <p class="text-lg font-extrabold text-blue-400" id="recommendedLaneVal">Lajur Tengah (Lane 2)</p>
+                                </div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-bullseye"></i>
+                                </div>
+                                <div>
+                                    <h5 class="text-xs font-bold text-white">Akurasi LiDAR & Optik</h5>
+                                    <p class="text-lg font-extrabold text-purple-400">98.2%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 4. SMART VISIBILITY MONITOR ================= -->
+                <div id="tab-visibility" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-smog text-emerald-400"></i> Visibility & Sensor Telemetry
+                                </h3>
+                                <p class="text-xs text-slate-400">Grafik tren riwayat intensitas optik, kepadatan partikel asap (PM2.5), dan kalibrasi sensor otomatis.</p>
+                            </div>
+                            <button onclick="calibrateSensors()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-600/20">
+                                <i class="fa-solid fa-sliders"></i> Kalibrasi Ulang Sensor
+                            </button>
+                        </div>
+
+                        <!-- Chart Container -->
+                        <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 h-[320px] relative">
+                            <canvas id="visibilityChart"></canvas>
+                        </div>
+
+                        <!-- Sensor Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Intensitas Transmisi Cahaya</span>
+                                <h4 class="text-2xl font-bold text-white" id="sensorLightVal">850 Lux</h4>
+                                <p class="text-[11px] text-emerald-400 mt-1" id="sensorLightSub">Pencahayaan alami cukup</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Kepadatan Partikel (PM2.5)</span>
+                                <h4 class="text-2xl font-bold text-white" id="sensorParticleVal">14 µg/m³</h4>
+                                <p class="text-[11px] text-emerald-400 mt-1" id="sensorParticleSub">Kualitas udara aman</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Klasifikasi Visibilitas</span>
+                                <h4 class="text-2xl font-bold text-emerald-400" id="sensorClassVal">OPTIMAL</h4>
+                                <p class="text-[11px] text-slate-400 mt-1">Kalibrasi tervalidasi ISO</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 5. SMART ALERT SYSTEM ================= -->
+                <div id="tab-alerts" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Smart Alert Management System
+                                </h3>
+                                <p class="text-xs text-slate-400">Pengaturan ambang batas peringatan, buzzer audio multi-frekuensi, dan riwayat log pemicu bahaya.</p>
+                            </div>
+                            <button onclick="simulateAudioBeepTest()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold transition shadow-lg">
+                                <i class="fa-solid fa-volume-high mr-1"></i> Tes Buzzer Peringatan
+                            </button>
+                        </div>
+
+                        <!-- Alert Threshold Descriptions -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-bold text-emerald-400 text-sm">NORMAL (&gt;800m)</span>
+                                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                                </div>
+                                <p class="text-xs text-slate-300">Jarak pandang luas. Lampu utama standar, sistem hanya melakukan pemantauan pasif.</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-amber-950/30 border border-amber-500/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-bold text-amber-400 text-sm">WASPADA (200m - 500m)</span>
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                                </div>
+                                <p class="text-xs text-slate-300">Kabut/Asap sedang. Bunyi bip tunggal, rekomendasi menyalakan lampu kabut (fog lamp).</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-red-950/30 border border-red-500/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-bold text-red-400 text-sm">KRITIS (&lt;200m)</span>
+                                    <i class="fa-solid fa-radiation text-red-400"></i>
+                                </div>
+                                <p class="text-xs text-slate-300">Asap karhutla/kabut pekat! Alarm kontinu berbunyi, saran penurunan kecepatan & jalur alternatif.</p>
+                            </div>
+                        </div>
+
+                        <!-- Full Log Feed -->
+                        <h4 class="font-bold text-white text-sm mb-3">Log Kejadian & Peringatan Terkini</h4>
+                        <div class="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3" id="fullAlertLogContainer">
+                            <div class="text-center text-slate-400 text-xs py-6">
+                                <i class="fa-solid fa-shield-check text-emerald-400 text-2xl mb-2 block"></i>
+                                Sesi perjalanan ini belum mencatat adanya peringatan darurat atau ancaman visibilitas kritis.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 6. DYNAMIC ROUTE PLANNER ================= -->
+                <div id="tab-route" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-route text-emerald-400"></i> Dynamic Route Planner & Risk Avoidance
+                                </h3>
+                                <p class="text-xs text-slate-400">Algoritma otomatis pengalihan rute jalan untuk menghindari titik asap karhutla dan kabut berbahaya.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Primary Route Card -->
+                            <div id="routeCardPrimary" class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between transition-all">
+                                <div>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Rute Utama (Tol Express)</span>
+                                        <span id="route1Badge" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold">Aman</span>
+                                    </div>
+                                    <h4 class="text-lg font-bold text-white mb-2">Tol Surabaya - Malang via KM 45</h4>
+                                    <p class="text-xs text-slate-300 leading-relaxed mb-4" id="route1Desc">
+                                        Jarak: 88 km | Estimasi: 1 jam 10 m. Rute tercepat melalui jalan bebas hambatan.
+                                    </p>
+                                </div>
+                                <button onclick="selectRoute('primary')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition border border-slate-700">
+                                    Pilih Rute Utama Ini
+                                </button>
+                            </div>
+
+                            <!-- Alternative Route Card -->
+                            <div id="routeCardAlt" class="p-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 flex flex-col justify-between transition-all shadow-xl">
+                                <div>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Rute Alternatif Rekomendasi</span>
+                                        <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold">Bebas Asap</span>
+                                    </div>
+                                    <h4 class="text-lg font-bold text-white mb-2">Jalur Arteri Non-Tol (Bypass Lawang)</h4>
+                                    <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                                        Jarak: 94 km | Estimasi: 1 jam 22 m. Bebas dari paparan asap karhutla dan potensi kemacetan kabut.
+                                    </p>
+                                </div>
+                                <button onclick="selectRoute('alt')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-emerald-600/20">
+                                    Gunakan Rute Alternatif Ini
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 7. COMMUNITY ROAD REPORT ================= -->
+                <div id="tab-community" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-users-line text-emerald-400"></i> Live Community Road Report
+                                </h3>
+                                <p class="text-xs text-slate-400">Laporkan kondisi asap karhutla, jalan berlubang, atau kecelakaan. Laporan langsung disinkronkan ke Hazard Map.</p>
+                            </div>
+                        </div>
+
+                        <!-- Report Submission Form -->
+                        <form onsubmit="submitCommunityReport(event)" class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-4 mb-6">
+                            <h4 class="font-bold text-white text-sm mb-2"><i class="fa-solid fa-pen-to-square text-emerald-400 mr-1"></i> Kirimkan Laporan Baru</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">Jenis Bahaya / Kondisi</label>
+                                    <select id="reportType" class="w-full bg-slate-800 text-xs text-white rounded-xl px-3 py-2.5 border border-slate-700 outline-none">
+                                        <option value="smoke">Asap Karhutla Pekat</option>
+                                        <option value="fog">Kabut Tebal Jarak Pandang Pendek</option>
+                                        <option value="accident">Kecelakaan Lalu Lintas</option>
+                                        <option value="roadblock">Pohon Tumbang / Jalan Terhalang</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">Koordinat / Lokasi Jalan</label>
+                                    <input type="text" id="reportLocation" required placeholder="Contoh: Tol KM 45 Lawang" class="w-full bg-slate-800 text-xs text-white rounded-xl px-3 py-2.5 border border-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">Tingkat Kebisingan / Keparahan</label>
+                                    <select id="reportSeverity" class="w-full bg-slate-800 text-xs text-white rounded-xl px-3 py-2.5 border border-slate-700 outline-none">
+                                        <option value="Sedang">Sedang (Perlu Waspada)</option>
+                                        <option value="Tinggi">Tinggi (Kritis / Berbahaya)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">Keterangan Detail</label>
+                                <textarea id="reportDesc" rows="2" required placeholder="Jelaskan kondisi singkat visual jalan..." class="w-full bg-slate-800 text-xs text-white rounded-xl px-3 py-2.5 border border-slate-700 outline-none"></textarea>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-emerald-600/20 flex items-center gap-2">
+                                    <i class="fa-solid fa-paper-plane"></i> Kirim & Sinkronkan ke Map
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Community Feed -->
+                        <h4 class="font-bold text-white text-sm mb-3">Laporan Komunitas Terbaru</h4>
+                        <div class="space-y-3" id="communityReportsList">
+                            <!-- Default item 1 -->
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-start justify-between gap-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                                        <i class="fa-solid fa-fire text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h5 class="font-bold text-white text-sm">Asap Karhutla Pekat</h5>
+                                            <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 font-bold">Terverifikasi (3 Pengendara)</span>
+                                        </div>
+                                        <p class="text-xs text-slate-300">Ruas Tol Pandaan KM 48 - Asap tebal dari ladang gambut menyelimuti jalanan, pandangan &lt; 150m.</p>
+                                        <span class="text-[10px] text-slate-500 mt-1 block">Dilaporkan oleh: Budi_Driver • 8 menit lalu</span>
+                                    </div>
+                                </div>
+                                <button onclick="verifyReport(this)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 text-xs font-medium transition">
+                                    <i class="fa-solid fa-thumbs-up mr-1"></i> Konfirmasi (+1)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 8. MY DEVICE DIAGNOSTICS ================= -->
+                <div id="tab-device" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-microchip text-emerald-400"></i> Hardware Status & Diagnostics
+                                </h3>
+                                <p class="text-xs text-slate-400">Pemeriksaan sensor optik, kamera AI NPU, GPS telemetri, dan kesehatan daya modul.</p>
+                            </div>
+                            <button onclick="runInteractiveDiagnostics()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-emerald-600/20">
+                                <i class="fa-solid fa-stethoscope mr-1"></i> Jalankan Tes Mandiri
+                            </button>
+                        </div>
+
+                        <!-- Hardware Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Koneksi Wireless</span>
+                                <h4 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                                    <i class="fa-solid fa-wifi"></i> 5G LTE (Connected)
+                                </h4>
+                                <p class="text-[11px] text-slate-500 mt-1">Ping: 12ms | Latensi Rendah</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Optic Sensor Lens</span>
+                                <h4 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                                    <i class="fa-solid fa-eye"></i> Calibrated
+                                </h4>
+                                <p class="text-[11px] text-slate-500 mt-1">Kebersihan Lensa: 98%</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">AI Processor NPU</span>
+                                <h4 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                                    <i class="fa-solid fa-microchip"></i> VISIRA-NPU v2.4
+                                </h4>
+                                <p class="text-[11px] text-slate-500 mt-1">Beban CPU: 24%</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-xs text-slate-400 block mb-1">Suhu & Tegangan</span>
+                                <h4 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+                                    <i class="fa-solid fa-temperature-half"></i> 37°C | 12.4V
+                                </h4>
+                                <p class="text-[11px] text-slate-500 mt-1">Daya: ACC Car Adapter</p>
+                            </div>
+                        </div>
+
+                        <!-- Progress Diagnostic Container -->
+                        <div id="diagProgressContainer" class="hidden p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between text-xs font-medium text-slate-300">
+                                <span id="diagStatusText">Memeriksa Modul Kamera...</span>
+                                <span id="diagPercent">0%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="diagProgressBar" class="h-full bg-emerald-500 transition-all duration-300 w-0"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 9. TRIP HISTORY ================= -->
+                <div id="tab-history" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-clock-rotate-left text-emerald-400"></i> Trip History & Safety Logs
+                                </h3>
+                                <p class="text-xs text-slate-400">Riwayat perjalanan, statistik visibilitas yang tercatat, dan laporan insiden terdeteksi.</p>
+                            </div>
+                        </div>
+
+                        <!-- Trip List Table -->
+                        <div class="bg-slate-900/80 rounded-xl border border-slate-800 overflow-hidden">
+                            <div class="p-4 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400 font-semibold">
+                                <span>Rute & Waktu</span>
+                                <span>Jarak & Durasi</span>
+                                <span>Rata-Rata Visibilitas</span>
+                                <span>Aksi</span>
+                            </div>
+                            <div class="divide-y divide-slate-800/60 text-xs">
+                                <div class="p-4 flex items-center justify-between hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <h5 class="font-bold text-white">Malang — Surabaya</h5>
+                                        <span class="text-[10px] text-slate-400">Hari ini, 07:00 - 08:15 WIB</span>
+                                    </div>
+                                    <span class="text-slate-300">88 km • 1j 15m</span>
+                                    <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">Optimal (1.2km)</span>
+                                    <button onclick="showModal('Detail Sesi #104', 'Rute Malang - Surabaya berjalan lancar. Tidak ada insiden asap karhutla terdeteksi.')" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">Detail</button>
+                                </div>
+                                <div class="p-4 flex items-center justify-between hover:bg-slate-800/40 transition">
+                                    <div>
+                                        <h5 class="font-bold text-white">Surabaya — Gresik</h5>
+                                        <span class="text-[10px] text-slate-400">Kemarin, 14:20 - 15:30 WIB</span>
+                                    </div>
+                                    <span class="text-slate-300">42 km • 1j 10m</span>
+                                    <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">Waspada (350m)</span>
+                                    <button onclick="showModal('Detail Sesi #103', 'Terjadi penurunan visibilitas akibat debu industri & asap lokal di KM 12.')" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">Detail</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 10. SAFETY CENTER ================= -->
+                <div id="tab-safety" class="tab-content space-y-6 hidden">
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-800/80 space-y-6">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                            <div>
+                                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-book-medical text-emerald-400"></i> Safety Center & Emergency Assistance
+                                </h3>
+                                <p class="text-xs text-slate-400">Pusat Informasi Keselamatan Komprehensif, Panduan Tanggap Darurat Bencana Karhutla & Kabut Ekstrem, serta Kontak Darurat Integratif.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="triggerEmergencySOS()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-red-600/30 animate-pulse">
+                                    <i class="fa-solid fa-phone-flip"></i> Panggil Bantuan SOS Darurat
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Driving Mode Recommendations -->
+                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+                            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-sliders text-emerald-400"></i> Mode Panduan Kondisi Jalan
+                            </h4>
+                            <p class="text-xs text-slate-400">Pilih kondisi cuaca saat ini untuk mengaktifkan daftar rekomendasi keselamatan otomatis dari AI VISIRA:</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                                <button onclick="setSafetyGuideMode('normal')" id="guideBtn-normal" class="safety-guide-btn p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 text-emerald-300 text-xs font-semibold flex flex-col items-center gap-1.5 transition">
+                                    <i class="fa-solid fa-sun text-lg text-emerald-400"></i> Cerah / Normal
+                                </button>
+                                <button onclick="setSafetyGuideMode('smoke')" id="guideBtn-smoke" class="safety-guide-btn p-3 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 text-xs font-semibold flex flex-col items-center gap-1.5 transition hover:border-red-500/40">
+                                    <i class="fa-solid fa-fire text-lg text-red-400"></i> Asap Karhutla Pekat
+                                </button>
+                                <button onclick="setSafetyGuideMode('fog')" id="guideBtn-fog" class="safety-guide-btn p-3 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 text-xs font-semibold flex flex-col items-center gap-1.5 transition hover:border-amber-500/40">
+                                    <i class="fa-solid fa-smog text-lg text-amber-400"></i> Kabut Tebal Pegunungan
+                                </button>
+                                <button onclick="setSafetyGuideMode('rain')" id="guideBtn-rain" class="safety-guide-btn p-3 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 text-xs font-semibold flex flex-col items-center gap-1.5 transition hover:border-blue-500/40">
+                                    <i class="fa-solid fa-cloud-showers-heavy text-lg text-blue-400"></i> Hujan Badai / Ekstrem
+                                </button>
+                            </div>
+
+                            <!-- Dynamic Safety Advice Box -->
+                            <div id="safetyGuideDetailBox" class="mt-4 p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300 space-y-2">
+                                <div class="font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-shield-halved text-emerald-400"></i> Panduan Aktif: Kondisi Cerah & Visibilitas Optimal (>1 KM)
+                                </div>
+                                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                                    <li>Pertahankan batas kecepatan standar sesuai rambu (maksimal 80-100 km/jam di tol).</li>
+                                    <li>Jaga jarak aman minimal 2 detik dengan kendaraan di depan.</li>
+                                    <li>Pastikan sistem sensor optik VISIRA-DRIVE dalam kondisi terkalibrasi.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Multi-Card Grid -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                            <!-- Standard Safety Checklist -->
+                            <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                        <i class="fa-solid fa-list-check text-emerald-400"></i> Checklist Pra-Perjalanan
+                                    </h4>
+                                    <span class="text-[10px] text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded font-bold" id="checklistProgressText">0 / 5 Selesai</span>
+                                </div>
+                                <div class="space-y-2 text-xs" id="safetyChecklistContainer">
+                                    <label class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition">
+                                        <input type="checkbox" onchange="updateChecklistProgress()" class="safety-chk w-4 h-4 accent-emerald-500 rounded">
+                                        <span class="text-slate-300">Periksa Kebersihan Lensa Optik Sensor VISIRA & Lampu Utama</span>
+                                    </label>
+                                    <label class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition">
+                                        <input type="checkbox" onchange="updateChecklistProgress()" class="safety-chk w-4 h-4 accent-emerald-500 rounded">
+                                        <span class="text-slate-300">Pastikan Lampu Kabut (Fog Lamp) Depan & Belakang Berfungsi</span>
+                                    </label>
+                                    <label class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition">
+                                        <input type="checkbox" onchange="updateChecklistProgress()" class="safety-chk w-4 h-4 accent-emerald-500 rounded">
+                                        <span class="text-slate-300">Set Sirkulasi Udara AC ke Mode 'Recirculate' (Mencegah Asap Masuk)</span>
+                                    </label>
+                                    <label class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition">
+                                        <input type="checkbox" onchange="updateChecklistProgress()" class="safety-chk w-4 h-4 accent-emerald-500 rounded">
+                                        <span class="text-slate-300">Cek Ketersediaan Masker Respirator (N95) di Kotak P3K Mobil</span>
+                                    </label>
+                                    <label class="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition">
+                                        <input type="checkbox" onchange="updateChecklistProgress()" class="safety-chk w-4 h-4 accent-emerald-500 rounded">
+                                        <span class="text-slate-300">Sinkronkan Rute Perjalanan dengan Dynamic Route Planner VISIRA</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Emergency Action Steps (Karhutla/Zero Visibility) -->
+                            <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Prosedur Darurat Pandangan Nol (< 50 Meter)
+                                    </h4>
+                                    <span class="text-[10px] text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded font-bold">Prosedur SOP</span>
+                                </div>
+                                <ol class="space-y-3 text-xs text-slate-300 relative border-l border-slate-800 ml-2 pl-4">
+                                    <li class="relative">
+                                        <span class="absolute -left-[21px] top-0 w-3 h-3 rounded-full bg-amber-500 border border-slate-900"></span>
+                                        <strong class="text-white block font-semibold mb-0.5">1. Turunkan Kecepatan & Nyalakan Fog Lamp</strong>
+                                        <span>Kurangi kecepatan secara perlahan tanpa mengerem mendadak. Nyalakan lampu jarak dekat & fog lamp.</span>
+                                    </li>
+                                    <li class="relative">
+                                        <span class="absolute -left-[21px] top-0 w-3 h-3 rounded-full bg-amber-500 border border-slate-900"></span>
+                                        <strong class="text-white block font-semibold mb-0.5">2. Dilarang Menggunakan Lampu Hazard Saat Bergerak</strong>
+                                        <span>Lampu hazard membuat pengemudi di belakang menyangka kendaraan Anda berhenti, memicu tabrakan beruntun.</span>
+                                    </li>
+                                    <li class="relative">
+                                        <span class="absolute -left-[21px] top-0 w-3 h-3 rounded-full bg-red-500 border border-slate-900"></span>
+                                        <strong class="text-white block font-semibold mb-0.5">3. Tepikan Kendaraan Jika Tidak Memungkinkan</strong>
+                                        <span>Gunakan bahu jalan paling luar atau rest area. Nyalakan hazard DAN rem parkir saat kendaraan BENAR-BENAR BERHENTI sempurna.</span>
+                                    </li>
+                                    <li class="relative">
+                                        <span class="absolute -left-[21px] top-0 w-3 h-3 rounded-full bg-emerald-500 border border-slate-900"></span>
+                                        <strong class="text-white block font-semibold mb-0.5">4. Gunakan Asisten Audio VISIRA Radar</strong>
+                                        <span>Pantau bunyi peringatan frekuensi jarak untuk mendeteksi kendaraan tak terlihat di sekitar.</span>
+                                    </li>
+                                </ol>
+                            </div>
+
+                        </div>
+
+                        <!-- Visibility Risk Standard Reference Matrix Table -->
+                        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-4">
+                            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-table-list text-emerald-400"></i> Matriks Batas Ambang Risiko Visibilitas & Aksi Pengendara
+                            </h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                                            <th class="p-3 font-semibold">Tingkat Risiko</th>
+                                            <th class="p-3 font-semibold">Jarak Pandang</th>
+                                            <th class="p-3 font-semibold">Penyebab Utama</th>
+                                            <th class="p-3 font-semibold">Respon Otomatis VISIRA</th>
+                                            <th class="p-3 font-semibold">Tindakan Pengemudi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                                        <tr class="hover:bg-slate-800/30">
+                                            <td class="p-3 font-bold text-emerald-400 flex items-center gap-2"><i class="fa-solid fa-circle-check"></i> Hijau (Aman)</td>
+                                            <td class="p-3 font-mono">> 800 Meter</td>
+                                            <td class="p-3">Udara Cerah / Rintik Ringan</td>
+                                            <td class="p-3">Monitoring Pasif</td>
+                                            <td class="p-3">Laju normal, perhatikan jarak aman standar.</td>
+                                        </tr>
+                                        <tr class="hover:bg-slate-800/30">
+                                            <td class="p-3 font-bold text-amber-400 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> Kuning (Waspada)</td>
+                                            <td class="p-3 font-mono">200 - 500 Meter</td>
+                                            <td class="p-3">Kabut Tipis / Hujan Sedang</td>
+                                            <td class="p-3">Audio Bip Tunggal + Notifikasi GUI</td>
+                                            <td class="p-3">Nyalakan Fog Lamp, turunkan kecepatan -20 km/jam.</td>
+                                        </tr>
+                                        <tr class="hover:bg-slate-800/30">
+                                            <td class="p-3 font-bold text-orange-400 flex items-center gap-2"><i class="fa-solid fa-fire text-amber-500"></i> Oranye (Bahaya)</td>
+                                            <td class="p-3 font-mono">100 - 200 Meter</td>
+                                            <td class="p-3">Asap Karhutla Sedang / Kabut Pekat</td>
+                                            <td class="p-3">Rekomendasi Rute Alternatif Otomatis</td>
+                                            <td class="p-3">AC mode dalam, siapkan masker, hindari mendahului.</td>
+                                        </tr>
+                                        <tr class="hover:bg-slate-800/30">
+                                            <td class="p-3 font-bold text-red-400 flex items-center gap-2"><i class="fa-solid fa-radiation"></i> Merah (Kritis)</td>
+                                            <td class="p-3 font-mono">< 100 Meter</td>
+                                            <td class="p-3">Asap Karhutla Pekat / Kabut Tebal</td>
+                                            <td class="p-3">Alarm Kontinu + Mode Radar Sensitif High</td>
+                                            <td class="p-3">Beralih ke rute alternatif atau tepi mobil di Rest Area terdekat.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Contact Quick Dial Cards -->
+                        <div class="space-y-3">
+                            <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-phone text-emerald-400"></i> Kontak Bantuan & Layanan Darurat Jalan
+                            </h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h5 class="font-bold text-white text-xs">Call Center Jasa Marga</h5>
+                                        <p class="text-sm font-extrabold text-emerald-400 font-mono mt-0.5">14080</p>
+                                        <span class="text-[10px] text-slate-500">Bantuan Mobil Derek Tol</span>
+                                    </div>
+                                    <button onclick="callEmergencyNumber('14080', 'Jasa Marga')" class="w-9 h-9 rounded-xl bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h5 class="font-bold text-white text-xs">Panggilan Darurat Nasional</h5>
+                                        <p class="text-sm font-extrabold text-blue-400 font-mono mt-0.5">112</p>
+                                        <span class="text-[10px] text-slate-500">Polisi, Ambulans, BPBD</span>
+                                    </div>
+                                    <button onclick="callEmergencyNumber('112', 'Layanan Darurat 112')" class="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h5 class="font-bold text-white text-xs">Posko BPBD Karhutla</h5>
+                                        <p class="text-sm font-extrabold text-red-400 font-mono mt-0.5">117</p>
+                                        <span class="text-[10px] text-slate-500">Evakuasi Bahaya Asap</span>
+                                    </div>
+                                    <button onclick="callEmergencyNumber('117', 'Posko BPBD')" class="w-9 h-9 rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </button>
+                                </div>
+                                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h5 class="font-bold text-white text-xs">Basarnas (Search & Rescue)</h5>
+                                        <p class="text-sm font-extrabold text-amber-400 font-mono mt-0.5">115</p>
+                                        <span class="text-[10px] text-slate-500">Penyelamatan Darurat</span>
+                                    </div>
+                                    <button onclick="callEmergencyNumber('115', 'Basarnas')" class="w-9 h-9 rounded-xl bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white flex items-center justify-center transition">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // ================= GLOBAL STATE =================
+        let currentTheme = 'dark';
+        let audioAlertsEnabled = true;
+        let driveSimulationActive = true;
+        let activeWeatherPreset = 'normal';
+        let visibilityChartInstance = null;
+        
+        // Leaflet Map State
+        let map = null;
+        let userMarker = null;
+        let hazardMarkers = [];
+        let mapRoutePolyline = null;
+        
+        // Simulation Coordinates (Malang to Surabaya Route)
+        const routeWaypoints = [
+            [-7.9826, 112.6308], // Malang
+            [-7.8920, 112.6680], // Singosari
+            [-7.8180, 112.6980], // Lawang
+            [-7.7000, 112.7150], // Purwodadi
+            [-7.5800, 112.7220], // Pandaan (Karhutla hotspot)
+            [-7.4500, 112.7180], // Sidoarjo
+            [-7.2575, 112.7521]  // Surabaya
+        ];
+        let currentWaypointIdx = 0;
+        let userPos = { lat: routeWaypoints[0][0], lng: routeWaypoints[0][1] };
+        let vehicleSpeed = 62; // km/h
+
+        // Hazard Points Data
+        let hazardList = [
+            { id: 1, type: 'smoke', lat: -7.5800, lng: 112.7220, title: 'Asap Karhutla Pekat', desc: 'Asap pekat dari lahan gambut Pandaan KM 48. Jarak pandang < 150m.', severity: 'critical' },
+            { id: 2, type: 'fog', lat: -7.8180, lng: 112.6980, title: 'Kabut Tebal Pegunungan', desc: 'Kabut menyelimuti area Lawang. Gunakan lampu kabut.', severity: 'warning' },
+            { id: 3, type: 'accident', lat: -7.4500, lng: 112.7180, title: 'Laporan Kendaraan Mogok', desc: 'Truk berhenti di bahu jalan kiri Sidoarjo.', severity: 'info' }
+        ];
+
+        // Canvas Radar Simulation Objects
+        let trafficCars = [];
+
+        // ================= TAB NAVIGATION =================
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800/60 hover:text-slate-200";
+            });
+
+            const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+            if (activeBtn) {
+                activeBtn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 shadow-sm";
+            }
+
+            const titles = {
+                dashboard: ["Dashboard Utama", "Pusat Informasi & Kendali VISIRA-DRIVE Terpadu"],
+                map: ["Interactive Live Hazard Map", "Pemantauan Real-Time Berbasis GIS & GPS Tracking"],
+                traffic: ["Dynamic Smart Traffic AI", "Simulasi Radar LiDAR & Pengenalan Objek AI"],
+                visibility: ["Visibility & Sensor Telemetry", "Analisis Transmisi Cahaya & Sensor Optik"],
+                alerts: ["Smart Alert Management", "Konfigurasi Buzzer & Manajemen Risiko"],
+                route: ["Dynamic Route Planner", "Rekomendasi Rute Pengalihan Bebas Bahaya"],
+                community: ["Live Community Report", "Laporan Kolaboratif Pengendara Jalan"],
+                device: ["Hardware Status & Diagnostics", "Pemeriksaan Kesehatan Sensor & Perangkat"],
+                history: ["Trip History & Safety Logs", "Riwayat Perjalanan & Catatan Insiden"],
+                safety: ["Safety Center & Guidance", "Panduan Resmi Berkendara Aman"]
+            };
+
+            if (titles[tabId]) {
+                document.getElementById('currentTabTitle').innerText = titles[tabId][0];
+                document.getElementById('currentTabSubtitle').innerText = titles[tabId][1];
+            }
+
+            // Invalidate Map Size when switching to Map tab to prevent tile glitching
+            if (tabId === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 200);
+            }
+
+            if (window.innerWidth < 1024) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+        }
+
+        function toggleTheme() {
+            const body = document.getElementById('appBody');
+            const icon = document.getElementById('themeIcon');
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            if (currentTheme === 'light') {
+                body.classList.remove('dark', 'bg-slate-950', 'text-slate-100');
+                body.classList.add('bg-slate-100', 'text-slate-900');
+                icon.className = "fa-solid fa-sun text-amber-500";
+            } else {
+                body.classList.add('dark', 'bg-slate-950', 'text-slate-100');
+                body.classList.remove('bg-slate-100', 'text-slate-900');
+                icon.className = "fa-solid fa-moon";
+            }
+        }
+
+        function toggleAudioAlerts() {
+            audioAlertsEnabled = !audioAlertsEnabled;
+            const icon = document.getElementById('audioIcon');
+            if (audioAlertsEnabled) {
+                icon.className = "fa-solid fa-volume-high text-emerald-400";
+                showToast("Suara Peringatan Buzzer Diaktifkan", "success");
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-500";
+                showToast("Suara Peringatan Dimatikan", "info");
+            }
+        }
+
+        function playBeep(type = 'warning') {
+            if (!audioAlertsEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                if (type === 'critical') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15);
+                } else {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                }
+                
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.35);
+            } catch (e) {
+                console.log("Audio Context prevented");
+            }
+        }
+
+        function simulateAudioBeepTest() {
+            playBeep('critical');
+            showToast("Uji Bip Buzzer Peringatan: Normal", "success");
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            let bg = "bg-slate-800 text-white border-slate-700";
+            if (type === 'success') bg = "bg-emerald-950 text-emerald-200 border-emerald-500/40";
+            if (type === 'warning') bg = "bg-amber-950 text-amber-200 border-amber-500/40";
+            if (type === 'error') bg = "bg-red-950 text-red-200 border-red-500/40";
+
+            toast.className = `pointer-events-auto glass-panel px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-xs transition-all duration-300 ${bg}`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-emerald-400 text-sm"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function showModal(title, bodyHtml) {
+            document.getElementById('modalTitle').innerHTML = title;
+            document.getElementById('modalBody').innerHTML = bodyHtml;
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        function initLeafletMap() {
+            if (map) return;
+            
+            // Center between Malang & Surabaya
+            map = L.map('leafletMap', {
+                zoomControl: false
+            }).setView([-7.6000, 112.7000], 10);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // User Car Icon
+            const userIcon = L.divIcon({
+                className: 'custom-user-icon',
+                html: `<div class="w-8 h-8 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-slate-950 font-bold shadow-xl animate-pulse"><i class="fa-solid fa-car text-xs"></i></div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            userMarker = L.marker([userPos.lat, userPos.lng], { icon: userIcon }).addTo(map);
+            userMarker.bindPopup("<b>VISIRA Vehicle</b><br>Lokasi Terkini Telemetri");
+
+            // Draw Route Polyline
+            mapRoutePolyline = L.polyline(routeWaypoints, {
+                color: '#22c55e',
+                weight: 4,
+                opacity: 0.8,
+                dashArray: '8, 8'
+            }).addTo(map);
+
+            // Render Hazard Pins
+            renderMapHazards();
+        }
+
+        function renderMapHazards() {
+            // Clear existing markers
+            hazardMarkers.forEach(m => map.removeLayer(m));
+            hazardMarkers = [];
+
+            hazardList.forEach(item => {
+                let colorClass = 'bg-red-600';
+                let iconClass = 'fa-fire';
+                if (item.type === 'fog') { colorClass = 'bg-amber-500'; iconClass = 'fa-cloud'; }
+                if (item.type === 'accident') { colorClass = 'bg-blue-500'; iconClass = 'fa-car-burst'; }
+
+                const pinIcon = L.divIcon({
+                    className: 'custom-hazard-pin',
+                    html: `<div class="w-8 h-8 rounded-full ${colorClass} border-2 border-white flex items-center justify-center text-white shadow-xl hover:scale-125 transition cursor-pointer pulse-marker"><i class="fa-solid ${iconClass} text-xs"></i></div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+
+                const marker = L.marker([item.lat, item.lng], { icon: pinIcon }).addTo(map);
+                marker.bindPopup(`
+                    <div class="text-xs space-y-1 p-1">
+                        <strong class="text-slate-900 font-bold text-sm block">${item.title}</strong>
+                        <p class="text-slate-600">${item.desc}</p>
+                        <span class="text-[10px] text-emerald-600 font-semibold">Terverifikasi Real-Time</span>
+                    </div>
+                `);
+                hazardMarkers.push(marker);
+            });
+        }
+
+        function recenterMap() {
+            if (map && userMarker) {
+                map.flyTo([userPos.lat, userPos.lng], 13, { duration: 1.5 });
+                showToast("Kamera Peta Berfokus ke Kendaraan Anda", "info");
+            }
+        }
+
+        function filterMapHazards(type) {
+            hazardMarkers.forEach((m, idx) => {
+                const item = hazardList[idx];
+                if (type === 'all' || item.type === type) {
+                    m.addTo(map);
+                } else {
+                    map.removeLayer(m);
+                }
+            });
+            showToast(`Filter Peta: ${type.toUpperCase()}`, "info");
+        }
+
+        function toggleDriveSimulation() {
+            driveSimulationActive = !driveSimulationActive;
+            const btnText = document.getElementById('driveSimBtnText');
+            if (driveSimulationActive) {
+                btnText.innerText = "GPS Sim: Aktif";
+                showToast("Simulasi Perjalanan Kendaraan Diaktifkan", "success");
+            } else {
+                btnText.innerText = "GPS Sim: Pause";
+                showToast("Simulasi Perjalanan Dipauskan", "warning");
+            }
+        }
+
+        function updateVehicleGPS() {
+            if (!driveSimulationActive) return;
+
+            const target = routeWaypoints[currentWaypointIdx];
+            const speedStep = 0.0003;
+
+            if (Math.abs(userPos.lat - target[0]) < speedStep && Math.abs(userPos.lng - target[1]) < speedStep) {
+                currentWaypointIdx = (currentWaypointIdx + 1) % routeWaypoints.length;
+            } else {
+                userPos.lat += (target[0] - userPos.lat) * 0.05;
+                userPos.lng += (target[1] - userPos.lng) * 0.05;
+            }
+
+            if (userMarker) {
+                userMarker.setLatLng([userPos.lat, userPos.lng]);
+            }
+
+            // Update Telemetry Displays
+            document.getElementById('dashCoords').innerText = `Lat ${userPos.lat.toFixed(4)}, Long ${userPos.lng.toFixed(4)}`;
+            
+            // Check proximity to smoke hazard (Pandaan)
+            const distToSmoke = Math.hypot(userPos.lat - (-7.5800), userPos.lng - 112.7220);
+            if (distToSmoke < 0.02 && activeWeatherPreset !== 'smoke') {
+                changeWeatherPreset('smoke');
+                showToast("PERINGATAN: Memasuki Area Asap Karhutla KM 48!", "error");
+            }
+        }
+
+        function initCameraCanvas() {
+            const canvas = document.getElementById('dashboardCameraCanvas');
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            let particles = [];
+            for (let i = 0; i < 60; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    speed: 1 + Math.random() * 3,
+                    size: 1 + Math.random() * 2
+                });
+            }
+
+            function drawCamera() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Road perspective gradient
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                if (activeWeatherPreset === 'smoke') {
+                    grad.addColorStop(0, '#451a03');
+                    grad.addColorStop(1, '#090d16');
+                } else if (activeWeatherPreset === 'fog') {
+                    grad.addColorStop(0, '#334155');
+                    grad.addColorStop(1, '#0f172a');
+                } else {
+                    grad.addColorStop(0, '#1e293b');
+                    grad.addColorStop(1, '#020617');
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw Perspective Road Lines
+                ctx.strokeStyle = activeWeatherPreset === 'smoke' ? '#d97706' : '#64748b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(canvas.width * 0.45, canvas.height * 0.4);
+                ctx.lineTo(canvas.width * 0.1, canvas.height);
+                ctx.moveTo(canvas.width * 0.55, canvas.height * 0.4);
+                ctx.lineTo(canvas.width * 0.9, canvas.height);
+                ctx.stroke();
+
+                // Dash center road lines
+                ctx.strokeStyle = '#f59e0b';
+                ctx.setLineDash([12, 12]);
+                ctx.beginPath();
+                ctx.moveTo(canvas.width * 0.5, canvas.height * 0.4);
+                ctx.lineTo(canvas.width * 0.5, canvas.height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Bounding Boxes Simulation in Camera View
+                if (activeWeatherPreset !== 'error') {
+                    // Vehicle 1 ahead
+                    const b1X = canvas.width * 0.42;
+                    const b1Y = canvas.height * 0.52;
+                    const b1W = 110;
+                    const b1H = 70;
+
+                    let boxColor = '#22c55e';
+                    let boxText = 'Mobil (Sedan) 98%';
+                    if (activeWeatherPreset === 'smoke') { boxColor = '#ef4444'; boxText = 'Mobil (Sedan) 64%'; }
+                    else if (activeWeatherPreset === 'fog') { boxColor = '#f59e0b'; boxText = 'Mobil (Sedan) 82%'; }
+
+                    ctx.strokeStyle = boxColor;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(b1X, b1Y, b1W, b1H);
+                    ctx.fillStyle = boxColor;
+                    ctx.fillRect(b1X, b1Y - 18, b1W, 18);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = 'bold 10px Inter, sans-serif';
+                    ctx.fillText(boxText, b1X + 4, b1Y - 5);
+
+                    // Vehicle 2 Truck
+                    const b2X = canvas.width * 0.18;
+                    const b2Y = canvas.height * 0.45;
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.strokeRect(b2X, b2Y, 70, 90);
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.fillRect(b2X, b2Y - 18, 70, 18);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText('Truk 91%', b2X + 4, b2Y - 5);
+                }
+
+                // Weather Overlay Particle Shader Effect
+                if (activeWeatherPreset === 'fog' || activeWeatherPreset === 'smoke' || activeWeatherPreset === 'rain') {
+                    ctx.fillStyle = activeWeatherPreset === 'smoke' ? 'rgba(180, 83, 9, 0.25)' : 'rgba(255, 255, 255, 0.15)';
+                    particles.forEach(p => {
+                        p.y += p.speed;
+                        if (p.y > canvas.height) p.y = 0;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+
+                // Glitch effect on error mode
+                if (activeWeatherPreset === 'error') {
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+                    ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 20);
+                }
+
+                // Update FPS Counter UI
+                document.getElementById('fpsCounter').innerText = (58 + Math.random() * 3).toFixed(1);
+
+                requestAnimationFrame(drawCamera);
+            }
+
+            drawCamera();
+        }
+
+        function initTrafficRadarCanvas() {
+            const canvas = document.getElementById('trafficRadarCanvas');
+            const ctx = canvas.getContext('2d');
+
+            function resizeRadar() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            resizeRadar();
+            window.addEventListener('resize', resizeRadar);
+
+            // Populate Initial Traffic Vehicles
+            trafficCars = [
+                { id: 1, lane: 1, y: 120, speed: 1.8, type: 'car', label: 'Sedan (~22m)' },
+                { id: 2, lane: 0, y: 50, speed: 1.2, type: 'truck', label: 'Truk Kontainer (~45m)' },
+                { id: 3, lane: 2, y: 220, speed: 2.2, type: 'bike', label: 'Motor (~12m)' },
+                { id: 4, lane: 1, y: -40, speed: 1.5, type: 'car', label: 'SUV (~60m)' }
+            ];
+
+            function drawRadar() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Dark radar grid
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Lanes background (3 Lanes)
+                const roadWidth = 260;
+                const roadX = (canvas.width - roadWidth) / 2;
+                const laneWidth = roadWidth / 3;
+
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(roadX, 0, roadWidth, canvas.height);
+
+                // Lane borders
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(roadX, 0, roadWidth, canvas.height);
+
+                ctx.strokeStyle = '#475569';
+                ctx.setLineDash([10, 10]);
+                for (let l = 1; l < 3; l++) {
+                    ctx.beginPath();
+                    ctx.moveTo(roadX + l * laneWidth, 0);
+                    ctx.lineTo(roadX + l * laneWidth, canvas.height);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+
+                // User Car (Fixed at Center Bottom)
+                const userCarX = roadX + laneWidth * 1 + (laneWidth - 36) / 2;
+                const userCarY = canvas.height - 90;
+
+                ctx.fillStyle = '#22c55e';
+                ctx.shadowColor = '#22c55e';
+                ctx.shadowBlur = 15;
+                ctx.fillRect(userCarX, userCarY, 36, 60);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 9px Inter';
+                ctx.fillText('YOU', userCarX + 8, userCarY + 34);
+
+                // Draw Radar Scanner Arc
+                const scanTime = Date.now() * 0.003;
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)';
+                ctx.beginPath();
+                ctx.arc(userCarX + 18, userCarY + 30, 180, scanTime, scanTime + 0.8);
+                ctx.stroke();
+
+                // Draw Traffic Vehicles
+                trafficCars.forEach(car => {
+                    car.y += car.speed;
+                    if (car.y > canvas.height + 50) car.y = -80;
+
+                    const carX = roadX + laneWidth * car.lane + (laneWidth - 32) / 2;
+                    let carColor = '#3b82f6';
+                    if (car.type === 'truck') carColor = '#f59e0b';
+                    if (car.type === 'bike') carColor = '#a855f7';
+
+                    // Collision proximity highlight
+                    const distToUser = Math.hypot((carX - userCarX), (car.y - userCarY));
+                    if (distToUser < 100 && car.lane === 1) {
+                        carColor = '#ef4444';
+                        document.getElementById('radarAlertBanner').classList.remove('hidden');
+                    }
+
+                    ctx.fillStyle = carColor;
+                    ctx.fillRect(carX, car.y, 32, car.type === 'truck' ? 70 : 48);
+
+                    // Bounding label
+                    ctx.strokeStyle = carColor;
+                    ctx.strokeRect(carX - 4, car.y - 4, 40, car.type === 'truck' ? 78 : 56);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '8px Inter';
+                    ctx.fillText(car.label, carX - 10, car.y - 8);
+                });
+
+                requestAnimationFrame(drawRadar);
+            }
+
+            drawRadar();
+        }
+
+        function updateTrafficDensity(val) {
+            document.getElementById('densityVal').innerText = val > 7 ? `Tinggi (${val})` : val > 4 ? `Medium (${val})` : `Rendah (${val})`;
+            showToast(`Kepadatan Radar Diperbarui: ${val} Kendaraan`, "info");
+        }
+
+        function changeWeatherPreset(preset) {
+            activeWeatherPreset = preset;
+            const banner = document.getElementById('statusBanner');
+            const title = document.getElementById('statusBannerTitle');
+            const desc = document.getElementById('statusBannerDesc');
+            const icon = document.getElementById('statusIndicatorIcon');
+            const visBadge = document.getElementById('visBadge');
+            const visValue = document.getElementById('visValue');
+            const alertCountBadge = document.getElementById('alertCountBadge');
+            const alertStatusText = document.getElementById('alertStatusText');
+            const weatherBadge = document.getElementById('dashWeatherBadge');
+            const alertsList = document.getElementById('dashboardAlertsList');
+
+            if (preset === 'normal') {
+                banner.className = "p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4";
+                icon.className = "w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shadow-inner";
+                icon.innerHTML = `<i class="fa-solid fa-circle-check"></i>`;
+                title.innerText = "Sistem Beroperasi Normal";
+                desc.innerText = "Sensor optik & kamera AI aktif mengirimkan data real-time. Visibilitas optik terjaga.";
+                visBadge.innerText = "Normal";
+                visBadge.className = "px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-400";
+                visValue.innerText = "1.2 km";
+                alertCountBadge.innerText = "0 Aktif";
+                alertStatusText.innerText = "Aman";
+                alertStatusText.className = "text-2xl font-extrabold text-emerald-400";
+                weatherBadge.innerText = "VISIBILITY OPTIMAL (1.2 KM)";
+                weatherBadge.className = "bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded font-bold";
+                alertsList.innerHTML = `<div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-slate-400 text-xs py-12"><i class="fa-solid fa-shield-check text-emerald-400 text-3xl mb-2"></i><p class="font-medium text-slate-300">Sistem Beroperasi Aman</p><p class="text-[11px] text-slate-500 mt-1">Tidak ada risiko bahaya atau asap karhutla di sekeliling kendaraan Anda.</p></div>`;
+                showToast("Kondisi Simulasi: Cerah & Normal", "success");
+            } else if (preset === 'fog') {
+                banner.className = "p-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4";
+                icon.className = "w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shadow-inner";
+                icon.innerHTML = `<i class="fa-solid fa-cloud"></i>`;
+                title.innerText = "Status Waspada: Kabut Tebal";
+                desc.innerText = "Sensor optik mendeteksi penurunan intensitas transmisi cahaya. Harap kurangi kecepatan.";
+                visBadge.innerText = "Waspada";
+                visBadge.className = "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-400";
+                visValue.innerText = "350 m";
+                alertCountBadge.innerText = "1 Waspada";
+                alertStatusText.innerText = "Waspada";
+                alertStatusText.className = "text-2xl font-extrabold text-amber-400";
+                weatherBadge.innerText = "WARNING: KABUT TERDETEKSI (350M)";
+                weatherBadge.className = "bg-amber-950/80 border border-amber-500/40 text-amber-300 px-2.5 py-1 rounded font-bold";
+                alertsList.innerHTML = `<div class="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40"><div class="flex items-center justify-between mb-1"><span class="font-bold text-amber-400 text-xs">VISIBILITAS MENURUN</span><span class="text-[10px] text-slate-400">Baru saja</span></div><p class="text-xs text-slate-300">Kabut tebal menutupi area pegunungan Lawang. Disarankan menyalakan Lampu Kabut.</p></div>`;
+                playBeep('warning');
+                showToast("PERINGATAN: Kabut Tebal Terdeteksi!", "warning");
+            } else if (preset === 'smoke') {
+                banner.className = "p-4 rounded-2xl bg-red-950/40 border border-red-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4";
+                icon.className = "w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-xl shadow-inner";
+                icon.innerHTML = `<i class="fa-solid fa-fire"></i>`;
+                title.innerText = "Status Kritis: Asap Karhutla Pekat!";
+                desc.innerText = "Sensor optik mendeteksi kerapatan asap ekstrim! Alarm keselamatan diaktifkan.";
+                visBadge.innerText = "Kritis";
+                visBadge.className = "px-2.5 py-1 rounded-lg text-xs font-bold bg-red-500/20 text-red-400";
+                visValue.innerText = "110 m";
+                alertCountBadge.innerText = "2 Kritis";
+                alertStatusText.innerText = "Bahaya!";
+                alertStatusText.className = "text-2xl font-extrabold text-red-400";
+                weatherBadge.innerText = "CRITICAL: ASAP KARHUTLA PEKAT (110M)";
+                weatherBadge.className = "bg-red-950/80 border border-red-500/40 text-red-300 px-2.5 py-1 rounded font-bold";
+                alertsList.innerHTML = `<div class="p-3.5 rounded-xl bg-red-950/40 border border-red-500/40"><div class="flex items-center justify-between mb-1"><span class="font-bold text-red-400 text-xs">BAHAYA ASAP KARHUTLA</span><span class="text-[10px] text-slate-400">Baru saja</span></div><p class="text-xs text-slate-300">Tol KM 48 Pandaan tertutup asap pekat. Beralihlah ke Dynamic Route Planner!</p></div>`;
+                playBeep('critical');
+                showToast("KRITIS: Terpapar Asap Karhutla Pekat!", "error");
+            }
+        }
+
+        function initVisibilityChart() {
+            const ctx = document.getElementById('visibilityChart').getContext('2d');
+            visibilityChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30'],
+                    datasets: [
+                        {
+                            label: 'Jarak Pandang Optik (km)',
+                            data: [1.2, 1.2, 1.1, 0.8, 0.35, 1.1, 1.2],
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Partikel Asap PM2.5 (µg/m³)',
+                            data: [12, 14, 28, 85, 140, 30, 15],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function calibrateSensors() {
+            showToast("Menjalankan Kalibrasi Ulang Sensor Optik...", "info");
+            setTimeout(() => {
+                showToast("Kalibrasi Selesai: Akurasi 99.4%", "success");
+            }, 1200);
+        }
+
+        function submitCommunityReport(event) {
+            event.preventDefault();
+            const type = document.getElementById('reportType').value;
+            const location = document.getElementById('reportLocation').value;
+            const desc = document.getElementById('reportDesc').value;
+
+            // Append to Hazard Map List dynamically
+            hazardList.push({
+                id: Date.now(),
+                type: type,
+                lat: userPos.lat + (Math.random() * 0.01 - 0.005),
+                lng: userPos.lng + (Math.random() * 0.01 - 0.005),
+                title: `Laporan: ${type.toUpperCase()}`,
+                desc: `${location} - ${desc}`,
+                severity: 'warning'
+            });
+
+            renderMapHazards();
+
+            // Append to Community Feed HTML
+            const feed = document.getElementById('communityReportsList');
+            const card = document.createElement('div');
+            card.className = "p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-start justify-between gap-4 animate-fade-in";
+            card.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-bullhorn text-sm"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <h5 class="font-bold text-white text-sm">${type.toUpperCase()}</h5>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold">Baru Ditambahkan</span>
+                        </div>
+                        <p class="text-xs text-slate-300">${location} — ${desc}</p>
+                        <span class="text-[10px] text-slate-500 mt-1 block">Dilaporkan oleh Anda • Baru Saja</span>
+                    </div>
+                </div>
+            `;
+            feed.prepend(card);
+            event.target.reset();
+            showToast("Laporan Berhasil Disinkronkan ke Hazard Map!", "success");
+        }
+
+        function verifyReport(btn) {
+            btn.outerHTML = `<span class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold"><i class="fa-solid fa-check-double mr-1"></i> Terkonfirmasi</span>`;
+            showToast("Konfirmasi Laporan Diterima!", "success");
+        }
+
+        function runInteractiveDiagnostics() {
+            const container = document.getElementById('diagProgressContainer');
+            const bar = document.getElementById('diagProgressBar');
+            const text = document.getElementById('diagStatusText');
+            const percent = document.getElementById('diagPercent');
+
+            container.classList.remove('hidden');
+            let p = 0;
+            const steps = [
+                'Menguji Sensor Optik & Lensa...',
+                'Uji Kinerja NPU AI Engine...',
+                'Pemeriksaan GPS & Antena LTE...',
+                'Diagnostik Selesai: Semua Modul Sehat!'
+            ];
+
+            const interval = setInterval(() => {
+                p += 25;
+                bar.style.width = `${p}%`;
+                percent.innerText = `${p}%`;
+                text.innerText = steps[Math.floor(p / 26)];
+
+                if (p >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        showModal("Hasil Diagnostik Mandiri", "<p class='text-emerald-400 font-bold mb-2'><i class='fa-solid fa-circle-check mr-1'></i> Semua Sistem Beroperasi Normal</p><ul class='text-xs space-y-1.5 text-slate-300'><li>• Optic Transmissometer: OK (0.1ms)</li><li>• AI NPU Frame Processing: 60 FPS</li><li>• Telemetri GPS: Terhubung (11 Satelit)</li></ul>");
+                    }, 400);
+                }
+            }, 400);
+        }
+
+        function selectRoute(type) {
+            if (type === 'alt') {
+                showModal('Navigasi Diperbarui', 'Rute dialihkan ke Jalur Arteri Bypass Lawang. Menghindari titik asap karhutla di KM 48.');
+                showToast("Rute Alternatif Bebas Asap Diaktifkan", "success");
+            } else {
+                showModal('Peringatan Rute Utama', 'Rute utama melewati area dengan potensi terpapar asap karhutla. Harap waspada!');
+                showToast("Rute Utama Dipilih (Tetap Waspada)", "warning");
+            }
+        }
+
+        window.onload = function() {
+            initLeafletMap();
+            initCameraCanvas();
+            initTrafficRadarCanvas();
+            initVisibilityChart();
+
+            // Interval Loop for Real-time GPS Vehicle Telemetry
+            setInterval(() => {
+                updateVehicleGPS();
+            }, 800);
+        };
+    </script>
+</body>
+</html>
+        // ================= SAFETY CENTER LOGIC =================
+        function setSafetyGuideMode(mode) {
+            document.querySelectorAll('.safety-guide-btn').forEach(btn => {
+                btn.className = "safety-guide-btn p-3 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 text-xs font-semibold flex flex-col items-center gap-1.5 transition";
+            });
+
+            const targetBtn = document.getElementById(`guideBtn-${mode}`);
+            const detailBox = document.getElementById('safetyGuideDetailBox');
+
+            if (mode === 'normal') {
+                if (targetBtn) targetBtn.className = "safety-guide-btn p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 text-emerald-300 text-xs font-semibold flex flex-col items-center gap-1.5 transition";
+                detailBox.innerHTML = `
+                    <div class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-emerald-400"></i> Panduan Aktif: Kondisi Cerah & Visibilitas Optimal (>1 KM)
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300">
+                        <li>Pertahankan batas kecepatan standar sesuai rambu (maksimal 80-100 km/jam di tol).</li>
+                        <li>Jaga jarak aman minimal 2 detik dengan kendaraan di depan.</li>
+                        <li>Pastikan sistem sensor optik VISIRA-DRIVE dalam kondisi terkalibrasi.</li>
+                    </ul>
+                `;
+            } else if (mode === 'smoke') {
+                if (targetBtn) targetBtn.className = "safety-guide-btn p-3 rounded-xl border border-red-500/40 bg-red-950/30 text-red-300 text-xs font-semibold flex flex-col items-center gap-1.5 transition";
+                detailBox.innerHTML = `
+                    <div class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-fire text-red-400"></i> Panduan Aktif: Paparan Asap Karhutla Pekat
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300">
+                        <li><strong>Segera aktifkan Mode Sirkulasi AC Dalam (Recirculate)</strong> agar partikel PM2.5 & karbon monoksida tidak masuk kabin.</li>
+                        <li>Gunakan masker N95 di dalam mobil jika aroma asap mulai terasa tajam.</li>
+                        <li>Nyalakan Lampu Utama Jarak Dekat & Fog Lamp Belakang agar terlihat oleh pengendara lain.</li>
+                        <li>Kurangi kecepatan hingga maksimal 40 km/jam dan buka tab Dynamic Route Planner untuk mencari jalur bebas asap.</li>
+                    </ul>
+                `;
+            } else if (mode === 'fog') {
+                if (targetBtn) targetBtn.className = "safety-guide-btn p-3 rounded-xl border border-amber-500/40 bg-amber-950/30 text-amber-300 text-xs font-semibold flex flex-col items-center gap-1.5 transition";
+                detailBox.innerHTML = `
+                    <div class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-smog text-amber-400"></i> Panduan Aktif: Kabut Tebal Area Pegunungan
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300">
+                        <li>Nyalakan Fog Lamp Depan (Lampu Kuning). <strong>Hindari lampu jauh (High Beam)</strong> karena akan memantul ke mata sendiri.</li>
+                        <li>Gunakan marka garis putih jalan di sebelah kiri sebagai panduan orientasi kemudi.</li>
+                        <li>Matikan musik kabin dan buka sedikit kaca jendela untuk mendengarkan suara kendaraan sekitar.</li>
+                    </ul>
+                `;
+            } else if (mode === 'rain') {
+                if (targetBtn) targetBtn.className = "safety-guide-btn p-3 rounded-xl border border-blue-500/40 bg-blue-950/30 text-blue-300 text-xs font-semibold flex flex-col items-center gap-1.5 transition";
+                detailBox.innerHTML = `
+                    <div class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-showers-heavy text-blue-400"></i> Panduan Aktif: Hujan Badai & Genangan Air
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 text-slate-300">
+                        <li>Waspadai bahaya <em>Aquaplaning</em>! Hindari pengereman mendadak saat melintasi genangan air.</li>
+                        <li>Posisikan Wiper pada kecepatan maksimum dan aktifkan Defogger kaca belakang.</li>
+                        <li>Jaga jarak pengereman minimal 2 kali lipat jarak normal.</li>
+                    </ul>
+                `;
+            }
+            showToast(`Panduan Keselamatan Diperbarui: ${mode.toUpperCase()}`, "info");
+        }
+
+        function updateChecklistProgress() {
+            const chks = document.querySelectorAll('.safety-chk');
+            let checkedCount = 0;
+            chks.forEach(chk => { if (chk.checked) checkedCount++; });
+            const progressTxt = document.getElementById('checklistProgressText');
+            if (progressTxt) {
+                progressTxt.innerText = `${checkedCount} / ${chks.length} Selesai`;
+                if (checkedCount === chks.length) {
+                    progressTxt.className = "text-[10px] text-emerald-300 bg-emerald-500/30 px-2 py-0.5 rounded font-bold animate-bounce";
+                    showToast("Semua Check List Pra-Perjalanan Selesai!", "success");
+                } else {
+                    progressTxt.className = "text-[10px] text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded font-bold";
+                }
+            }
+        }
+
+        function triggerEmergencySOS() {
+            showModal("SOS DARURAT DIPANGGIL", `
+                <div class="space-y-3">
+                    <p class="text-red-400 font-bold text-sm"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Memancarkan Koordinat Lokasi Anda ke Layanan Darurat</p>
+                    <p class="text-xs text-slate-300">Sistem VISIRA-DRIVE sedang mengirimkan koordinat GPS (<span class="font-mono font-bold text-white">Lat ${userPos.lat.toFixed(4)}, Long ${userPos.lng.toFixed(4)}</span>) dan telemetri kendaraan ke Call Center 112 & BPBD.</p>
+                    <div class="p-3 bg-red-950/40 border border-red-500/40 rounded-xl text-xs text-red-200">
+                        Sinyal Suara Bip Darurat Diaktifkan di Sekitar Kendaraan.
+                    </div>
+                </div>
+            `);
+            playBeep('critical');
+            showToast("Sinyal SOS Darurat Berhasil Dipancarkan!", "error");
+        }
+
+        function callEmergencyNumber(number, serviceName) {
+            showToast(`Menghubungkan ke ${serviceName} (${number})...`, "warning");
+            setTimeout(() => {
+                showModal(`Memanggil ${serviceName}`, `<p class='text-sm font-bold text-white mb-2'>Nomor: <span class='text-emerald-400 font-mono'>${number}</span></p><p class='text-xs text-slate-300'>Panggilan langsung terhubung melalui koneksi seluler telemetri kendaraan Anda.</p>`);
+            }, 600);
+        }
+
+        window.onload = function() {
+            initLeafletMap();
+            initCameraCanvas();
+            initTrafficRadarCanvas();
+            initVisibilityChart();
+
+            // Interval Loop for Real-time GPS Vehicle Telemetry
+            setInterval(() => {
+                updateVehicleGPS();
+            }, 800);
+        };
+    </script>
+</body>
+</html>
